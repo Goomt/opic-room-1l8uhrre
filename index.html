@@ -164,6 +164,10 @@ ul.plain{margin:0;padding-left:1.2em}
 .custom .notice{flex-basis:100%;margin:0}
 .sheet.tall{max-height:calc(100vh - 32px);overflow-y:auto}
 .mebar{display:flex;align-items:center;gap:10px;width:100%;border:1px dashed var(--green);background:var(--surface);border-radius:14px;padding:12px 14px;margin-bottom:12px;text-align:left;cursor:pointer;min-height:56px}
+.mebar.due{border-style:solid;border-color:var(--amber);background:var(--amber-soft)}
+.mebar.due .go-txt{color:var(--amber)}
+nav.tabs button{position:relative}
+.nbadge{position:absolute;top:6px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--red);color:var(--surface);font-size:.7rem;font-weight:700;line-height:18px;text-align:center}
 .mebar b{display:block;font-size:.98rem}
 .mebar small{display:block;color:var(--ink-2);font-size:.82rem}
 .mebar span:first-child{flex:1}
@@ -513,7 +517,24 @@ function save(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 const DONE=new Set(load("opic-done",[])), FAV=new Set(load("opic-fav",[]));
 let HIST=load("opic-history",[]);
 const markDone=id=>{DONE.add(id);save("opic-done",[...DONE]);};
-function toggleFav(id){FAV.has(id)?FAV.delete(id):FAV.add(id);save("opic-fav",[...FAV]);return FAV.has(id);}
+function toggleFav(id){FAV.has(id)?FAV.delete(id):FAV.add(id);save("opic-fav",[...FAV]);if(FAV.has(id)) addReview(id);return FAV.has(id);}
+
+// ---------- spaced review (1 → 3 → 7 days) ----------
+// REV[id]={s:단계, due:복습일(로컬 날짜 번호)}. 70% 미만이면 0단계로, 7일 복습까지 맞히면 졸업.
+const GAPS=[1,3,7];
+const today=()=>Math.floor((Date.now()-new Date().getTimezoneOffset()*60000)/86400000);
+let REV=load("opic-review",{});
+const saveRev=()=>save("opic-review",REV);
+function addReview(id,reset){ if(reset||!REV[id]){REV[id]={s:0,due:today()+GAPS[0]};saveRev();} }
+function gradeReview(id,ok){
+  const r=REV[id]||{s:0};
+  if(!ok) REV[id]={s:0,due:today()+GAPS[0]};
+  else if(r.s+1>=GAPS.length) delete REV[id];
+  else REV[id]={s:r.s+1,due:today()+GAPS[r.s+1]};
+  saveRev();
+}
+const dueIds=()=>Object.keys(REV).filter(id=>REV[id].due<=today()&&sentence(id));
+function dayLabel(n){const d=new Date(n*86400000), k=n-today();return (d.getUTCMonth()+1)+"월 "+d.getUTCDate()+"일"+(k===1?" (내일)":k>1?" ("+k+"일 뒤)":"");}
 
 // ---------- my info (fills {TOKENS} in sentences) ----------
 const ME_DEF={nameKo:"김민수",nameEn:"Minsu Kim",age:32,jobKo:"소프트웨어 엔지니어",jobEn:"software engineer",coKo:"서울에 있는 IT 회사",coEn:"an IT company in Seoul",years:5,townKo:"서울 서북쪽",townEn:"the northwest part of Seoul"};
@@ -645,6 +666,8 @@ function sentenceRow(id,en,ko,opts){
       const msg=c.score>=85?"아주 좋아요":c.score>=70?"좋아요":"빨간 단어를 다시";
       result.append(el("span",{class:"score"},c.score+"%"), el("span",{class:"muted"},msg), el("br"), line, el("span",{class:"heard"},"인식: "+c.heard));
       if(c.score>=70){ if(!opts.noTrack) markDone(id); row.classList.add("done"); }
+      else if(!opts.noTrack&&!opts.review) addReview(id,true);
+      if(opts.onScore) opts.onScore(c.score);
     }
   };
   const ctrl=el("div",{class:"ctrl"},
@@ -688,7 +711,13 @@ function setTab(t){
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===t?"page":"false"));
   render();
 }
-document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{ if(b.dataset.tab==="learn") S.topic=null; setTab(b.dataset.tab); });
+document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>{ if(b.dataset.tab==="learn") S.topic=null; if(b.dataset.tab==="saved") S.review=null; setTab(b.dataset.tab); });
+function updateBadge(){
+  const b=document.querySelector('nav.tabs button[data-tab="saved"]'), k=dueIds().length; let n=b.querySelector(".nbadge");
+  if(!k){ if(n) n.remove(); return; }
+  if(!n){ n=el("span",{class:"nbadge"}); b.append(n); }
+  n.textContent=k; n.setAttribute("aria-label","오늘 복습 "+k+"문장");
+}
 
 function header(title,onBack,sub,right){
   const h=el("div",{class:"top"});
@@ -702,6 +731,7 @@ function render(){
   if(S.tab==="learn") S.topic?renderTopic():renderLearn();
   else if(S.tab==="mock") renderMock();
   else renderSaved();
+  updateBadge();
 }
 
 // ---------- learn ----------
@@ -710,6 +740,10 @@ function renderLearn(){
   app.append(el("div",{class:"stats"},
     el("div",null,el("b",null,DONE.size+" / "+TOTAL),el("span",null,"따라 말한 문장")),
     el("div",null,el("b",null,FAV.size),el("span",null,"저장한 문장"))));
+  const due=dueIds().length;
+  if(due) app.append(el("button",{class:"mebar due",type:"button",onclick:()=>{S.topic=null;setTab("saved");startReview();}},
+    el("span",null,el("b",null,"오늘 복습할 문장 "+due+"개"),el("small",null,"헷갈렸던 문장과 저장한 문장이 다시 왔어요. 1·3·7일 간격으로 보면 오래 기억됩니다.")),
+    el("span",{class:"go-txt"},"복습하기")));
   app.append(meBar());
   const card=(title,small,ids,onclick,wide)=>{
     const d=ids.filter(i=>DONE.has(i)).length;
@@ -813,8 +847,42 @@ function renderFrame(f,back){
 }
 
 // ---------- saved ----------
+function startReview(){ S.review={ids:shuffle(dueIds()),i:0,ok:0,shown:false}; render(); }
+function renderReview(){
+  const R=S.review, exit=()=>{S.review=null;stopActive();hush();render();};
+  if(R.i>=R.ids.length){
+    header("복습 끝",exit);
+    app.append(el("div",{class:"block"},
+      el("p",{style:"margin:0 0 12px"},R.ids.length+"문장 중 "+R.ok+"문장을 외웠어요."+(R.ok<R.ids.length?" 헷갈린 문장은 내일 다시 나옵니다.":"")),
+      el("button",{class:"btn primary block-w",type:"button",onclick:exit},"내 문장으로 돌아가기")));
+    return;
+  }
+  const id=R.ids[R.i], s=sentence(id), r=REV[id]||{s:0};
+  header("오늘 복습",exit,(R.i+1)+" / "+R.ids.length+"문장");
+  const c=el("div",{class:"qcard"},el("div",{class:"qhead"},el("span",{class:"badge"},s.from)),
+    el("p",{class:"qen",style:"font-size:1.1rem"},s.ko),
+    el("p",{class:"muted",style:"margin:6px 0 0"},"먼저 영어로 떠올려 소리 내어 말해 본 뒤 정답을 확인하세요."));
+  const next=ok=>{gradeReview(id,ok);if(ok)R.ok++;R.i++;R.shown=false;stopActive();hush();render();};
+  const ans=el("div",{class:R.shown?"":"hidden"});
+  const reveal=el("button",{class:"btn primary block-w"+(R.shown?" hidden":""),type:"button",style:"margin-top:12px",
+    onclick:()=>{R.shown=true;reveal.classList.add("hidden");ans.classList.remove("hidden");speak(s.en);}},"정답 보기");
+  const good=el("button",{class:"btn",type:"button",onclick:()=>next(true)},"외웠어요 ("+(r.s+1>=GAPS.length?"복습 끝":GAPS[r.s+1]+"일 뒤 다시")+")");
+  ans.append(el("h3",null,"정답 (눌러서 듣고 따라 말하기)"),
+    sentenceRow(id,s.en,s.ko,{review:true,onScore:sc=>good.classList.toggle("primary",sc>=70)}),
+    el("div",{class:"btn-row"},el("button",{class:"btn",type:"button",onclick:()=>next(false)},"헷갈려요 (내일 다시)"),good));
+  c.append(reveal,ans); app.append(c);
+}
+
 function renderSaved(){
+  if(S.review) return renderReview();
   header("내 문장",null,"저장한 문장을 모아 반복합니다.");
+  const due=dueIds(), wait=Object.keys(REV).filter(id=>sentence(id));
+  const rb=el("div",{class:"block"},el("h2",null,"복습"),
+    el("p",{class:"muted",style:"margin:-4px 0 10px"},"따라 말하기에서 70% 미만이었던 문장과 저장한 문장이 1일 → 3일 → 7일 뒤에 다시 나옵니다."));
+  if(due.length) rb.append(el("button",{class:"btn primary block-w",type:"button",onclick:startReview},"오늘 복습 "+due.length+"문장 시작"));
+  else if(wait.length) rb.append(el("p",{style:"margin:0"},"오늘 복습은 없어요. 다음 복습: "+dayLabel(Math.min(...wait.map(id=>REV[id].due)))+" · 기다리는 문장 "+wait.length+"개"));
+  else rb.append(el("p",{style:"margin:0"},"아직 복습할 문장이 없습니다."));
+  app.append(rb);
   const ids=[...FAV].filter(id=>sentence(id));
   if(!ids.length){ app.append(el("p",{class:"empty"},"아직 저장한 문장이 없습니다. 따라 말하기에서 예문을 펼치고 저장을 누르세요.")); return; }
   const c=el("div",{class:"qcard"});

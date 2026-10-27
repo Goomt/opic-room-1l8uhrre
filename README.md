@@ -20,7 +20,7 @@ OPIc(영어 말하기 시험) 연습용 모바일 웹앱입니다. 친구 1명�
 
 친구의 진도가 유지되도록 아래 키 이름은 바꾸지 않습니다.
 
-`opic-done`, `opic-fav`, `opic-mock-set`, `opic-onboarded`, `opic-history`, `opic-me`(내 정보), `opic-frames`(뼈대 선택)
+`opic-done`, `opic-fav`, `opic-mock-set`, `opic-onboarded`, `opic-history`, `opic-me`(내 정보), `opic-frames`(뼈대 선택), `opic-review`(복습 일정)
 
 ## 비공개 처리
 
@@ -37,5 +37,5 @@ GitHub Pages 무료 플랜은 public 저장소에서만 동작합니다. 그래�
 
 1. ~~내 정보 입력으로 예시 정보 자동 치환~~ (완료: 첫 화면 '내 정보', localStorage `opic-me`)
 2. ~~유형별 답변 템플릿 훈련~~ (완료: 따라 말하기 ⑤ 묘사·루틴·경험 뼈대, `FRAMES` 데이터, localStorage `opic-frames`)
-3. 틀렸거나 저장한 문장을 1일/3일/7일 뒤 다시 띄우는 복습
+3. ~~틀렸거나 저장한 문장을 1일/3일/7일 뒤 다시 띄우는 복습~~ (완료: 내 문장 탭 복습, localStorage `opic-review`)
 4. 내 녹음 다시 듣기(MediaRecorder)
