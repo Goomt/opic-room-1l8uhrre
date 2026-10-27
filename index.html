@@ -498,7 +498,7 @@ const FRAMES = [
  {s:"마무리", f:"To make a long story short, it was an experience I’ll never forget.", ko:"간단히 말하면, 절대 잊지 못할 경험이었어요."}]}
 ];
 </script>
-<script src="data-more.js?v=1"></script>
+<script src="data-more.js?v=2"></script>
 <script>
 (function(){
 "use strict";
@@ -643,7 +643,7 @@ function clipControls(key,text,rate){
 // ---------- AI 서버 (worker/ 폴더의 Cloudflare Worker) ----------
 // 배포한 Worker 주소. 비어 있거나 AI 코드가 없으면 AI 기능은 모두 숨겨짐.
 // AI 코드는 '내 정보'에서 넣거나, 링크 뒤에 #code=코드 를 붙여 열면 저장됨.
-const AI_URL_DEFAULT="";
+const AI_URL_DEFAULT="https://opic-room-ai.goomt.workers.dev";
 const AI_URL=load("opic-ai-url",null)||AI_URL_DEFAULT; // opic-ai-url은 로컬 테스트용 덮어쓰기
 (function(){ const m=location.hash.match(/code=([^&]+)/); if(m){ save("opic-ai-code",decodeURIComponent(m[1])); try{history.replaceState(null,"",location.pathname+location.search);}catch(e){} } })();
 let AI_CODE=load("opic-ai-code","");
