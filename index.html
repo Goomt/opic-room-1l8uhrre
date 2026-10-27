@@ -159,6 +159,9 @@ ul.plain{margin:0;padding-left:1.2em}
 .sheet .dots{display:flex;gap:6px;margin:14px 0}
 .sheet .dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
 .sheet .dots i.on{background:var(--green)}
+.custom{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.custom input{flex:1 1 200px;min-height:44px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:16px;background:var(--mist);color:var(--ink)}
+.custom .notice{flex-basis:100%;margin:0}
 .sheet.tall{max-height:calc(100vh - 32px);overflow-y:auto}
 .mebar{display:flex;align-items:center;gap:10px;width:100%;border:1px dashed var(--green);background:var(--surface);border-radius:14px;padding:12px 14px;margin-bottom:12px;text-align:left;cursor:pointer;min-height:56px}
 .mebar b{display:block;font-size:.98rem}
@@ -450,6 +453,46 @@ const TOPICS = [
      ["The roads are always packed with traffic.","도로는 늘 차로 꽉 막혀요."]],
   m:"One of the biggest holidays in Korea is Chuseok. It’s like Thanksgiving in America, and it usually lasts three days in the fall. On Chuseok, families get together at their parents’ or grandparents’ house. We make and eat traditional food, like songpyeon, a kind of rice cake, and different kinds of pancakes. Many families also visit their ancestors’ graves to show respect. The roads are always packed with traffic because everyone travels at the same time. But it’s a special time to catch up with family, so I always look forward to it."}]}
 ];
+
+// 답변 뼈대: 도입 → 디테일 3개 → 감정 → 마무리. ___ 자리에 opts 중 하나(또는 직접 쓴 말)가 들어감. ref는 앞 단계의 선택을 다시 씀.
+const FRAMES = [
+{id:"desc", label:"묘사", sub:"집·동네·카페·공원을 설명할 때", steps:[
+ {s:"도입", f:"I’d like to tell you about ___.", ko:"___에 대해 말씀드릴게요.",
+  opts:[["my apartment","우리 아파트"],["my neighborhood","우리 동네"],["my favorite café","좋아하는 카페"],["a park near my house","집 근처 공원"]]},
+ {s:"디테일 1 · 위치", f:"It’s located ___.", ko:"___에 있어요.",
+  opts:[["near the subway station","지하철역 근처"],["in the middle of the city","도시 한가운데"],["about ten minutes from my place","집에서 10분 거리"]]},
+ {s:"디테일 2 · 모습", f:"When you walk in, the first thing you notice is ___.", ko:"들어가면 가장 먼저 ___이(가) 눈에 들어와요.",
+  opts:[["a big window","큰 창문"],["lots of plants","많은 식물"],["the warm lighting","따뜻한 조명"]]},
+ {s:"디테일 3 · 좋은 점", f:"What I like most about it is that ___.", ko:"가장 좋은 점은 ___는 거예요.",
+  opts:[["it’s really quiet","정말 조용하다"],["it’s close to everything","어디든 가깝다"],["it’s always clean","항상 깨끗하다"]]},
+ {s:"감정", f:"Whenever I’m there, I feel ___.", ko:"거기 있으면 늘 ___.",
+  opts:[["relaxed","마음이 편해요"],["comfortable","편안해요"],["really happy","정말 행복해요"]]},
+ {s:"마무리", f:"That’s all I can say about ___.", ko:"___에 대해 말할 수 있는 건 이게 다예요.", ref:0}]},
+{id:"routine", label:"루틴", sub:"평소에 하는 일을 순서대로 말할 때", steps:[
+ {s:"도입", f:"Let me tell you what I usually do when I ___.", ko:"___ 때 제가 보통 하는 걸 말씀드릴게요.",
+  opts:[["go to the park","공원에 갈"],["go to a café","카페에 갈"],["go jogging","조깅하러 갈"],["get home from work","퇴근하고 집에 올"]]},
+ {s:"디테일 1 · 먼저", f:"First, I ___.", ko:"먼저 ___.",
+  opts:[["check the weather","날씨를 확인해요"],["grab my earbuds","이어폰을 챙겨요"],["change my clothes","옷을 갈아입어요"]]},
+ {s:"디테일 2 · 그다음", f:"After that, I ___.", ko:"그다음엔 ___.",
+  opts:[["walk around for a while","한동안 걸어 다녀요"],["order an iced Americano","아이스 아메리카노를 시켜요"],["listen to some music","음악을 들어요"]]},
+ {s:"디테일 3 · 마지막", f:"Finally, I ___.", ko:"마지막으로 ___.",
+  opts:[["go back home and take a shower","집에 가서 샤워해요"],["read a book for an hour","한 시간쯤 책을 읽어요"],["chat with my friends","친구들과 수다를 떨어요"]]},
+ {s:"감정", f:"It always makes me feel ___.", ko:"그러면 늘 ___.",
+  opts:[["refreshed","상쾌해져요"],["relaxed","마음이 편해져요"],["full of energy","힘이 나요"]]},
+ {s:"마무리", f:"Anyway, that’s what I usually do when I ___.", ko:"아무튼 그게 제가 ___ 때 보통 하는 일이에요.", ref:0}]},
+{id:"exp", label:"경험", sub:"기억에 남는 일을 이야기할 때", steps:[
+ {s:"도입", f:"I still remember the time when I ___.", ko:"___ 때를 아직도 기억해요.",
+  opts:[["lost my wallet on a trip","여행 중에 지갑을 잃어버렸던"],["got caught in the rain","비를 쫄딱 맞았던"],["ran into an old friend","옛 친구를 우연히 만났던"],["changed the wallpaper in my room","방 벽지를 바꿨던"]]},
+ {s:"디테일 1 · 언제", f:"It happened ___.", ko:"___ 있었던 일이에요.",
+  opts:[["about two years ago","2년 전쯤"],["last summer","작년 여름에"],["when I was in college","대학생 때"]]},
+ {s:"디테일 2 · 처음 상황", f:"At first, ___.", ko:"처음엔 ___.",
+  opts:[["I didn’t know what to do","어떻게 해야 할지 몰랐어요"],["I was really excited","정말 들떴어요"],["everything seemed fine","다 괜찮아 보였어요"]]},
+ {s:"디테일 3 · 결과", f:"But in the end, ___.", ko:"하지만 결국 ___.",
+  opts:[["everything turned out fine","다 잘 풀렸어요"],["someone helped me out","누군가 저를 도와줬어요"],["it became a good memory","좋은 추억이 됐어요"]]},
+ {s:"감정", f:"I was so ___.", ko:"정말 ___.",
+  opts:[["relieved","안도했어요"],["surprised","놀랐어요"],["happy","기뻤어요"]]},
+ {s:"마무리", f:"To make a long story short, it was an experience I’ll never forget.", ko:"간단히 말하면, 절대 잊지 못할 경험이었어요."}]}
+];
 (function(){
 "use strict";
 const LEVELS=["IM1","IM2","IM3","IH","AL"];
@@ -566,7 +609,7 @@ function sentenceRow(id,en,ko,opts){
   const setSay=()=>{ if(SR&&!srBlocked){sayBtn.innerHTML=ICON.mic+"<span>따라 말하기</span>";} else {sayBtn.textContent="소리 내어 말했어요";} };
   setSay();
   sayBtn.onclick=()=>{
-    if(!SR||srBlocked){ markDone(id); row.classList.add("done"); result.textContent="완료로 표시했습니다. 3번 반복해서 말해 보세요."; return; }
+    if(!SR||srBlocked){ if(!opts.noTrack) markDone(id); row.classList.add("done"); result.textContent="완료로 표시했습니다. 3번 반복해서 말해 보세요."; return; }
     if(activeRec){ stopActive(); setSay(); sayBtn.classList.remove("rec"); return; }
     hush();
     const r=new SR(); activeRec=r;
@@ -601,14 +644,14 @@ function sentenceRow(id,en,ko,opts){
       });
       const msg=c.score>=85?"아주 좋아요":c.score>=70?"좋아요":"빨간 단어를 다시";
       result.append(el("span",{class:"score"},c.score+"%"), el("span",{class:"muted"},msg), el("br"), line, el("span",{class:"heard"},"인식: "+c.heard));
-      if(c.score>=70){ markDone(id); row.classList.add("done"); }
+      if(c.score>=70){ if(!opts.noTrack) markDone(id); row.classList.add("done"); }
     }
   };
   const ctrl=el("div",{class:"ctrl"},
     el("div",{class:"row"},
       el("button",{class:"pill",type:"button",html:ICON.play+"<span>듣기</span>",onclick:()=>speak(en)}),
       el("button",{class:"pill",type:"button",onclick:()=>speak(en,0.7)},"천천히"),
-      sayBtn, favBtn),
+      sayBtn, opts.noTrack?null:favBtn),
     result);
   tap.onclick=()=>{
     const open=!row.classList.contains("open");
@@ -686,6 +729,11 @@ function renderLearn(){
   const g3=el("div",{class:"tlist"});
   ["roleplay","surprise"].forEach(id=>{const t=byId(id);g3.append(card(t.label,t.qs.length+"문항",topicIds(t),()=>{S.topic=id;render();}));});
   app.append(g3);
+  app.append(el("p",{class:"group-h"},"⑤ 답변 뼈대로 내 답 만들기 (빈칸 채워 말하기)"));
+  const g4=el("div",{class:"tlist"});
+  FRAMES.forEach(f=>g4.append(el("button",{class:"tcard",type:"button",onclick:()=>{S.topic="frame:"+f.id;render();}},
+    el("b",null,f.label+" 뼈대"),el("small",null,f.sub))));
+  app.append(g4);
 }
 
 function renderTopic(){
@@ -699,6 +747,7 @@ function renderTopic(){
     });
     return;
   }
+  if(S.topic.startsWith("frame:")) return renderFrame(FRAMES.find(f=>"frame:"+f.id===S.topic),back);
   const t=byId(S.topic);
   header(t.label,back,"핵심 문장을 하나씩 따라 말한 뒤, 모범 답안 전체를 들어 보세요.");
   if(t.id==="intro"||t.id==="neighborhood") app.append(meBar());
@@ -711,6 +760,56 @@ function renderTopic(){
     c.append(modelBlock(q.m));
     app.append(c);
   });
+}
+
+// ---------- answer frames ----------
+// 선택값: 숫자(opts 번호) 또는 {c:"직접 쓴 영어"}. 폰에 저장.
+let FR=load("opic-frames",{});
+const pick=(f,i)=>(FR[f.id]||[])[i];
+function setPick(f,i,v){const a=(FR[f.id]||[]).slice();a[i]=v;FR[f.id]=a;save("opic-frames",FR);}
+function frameLine(f,i){
+  const st=f.steps[i], src=st.ref!=null?st.ref:i, s=f.steps[src];
+  if(!s.opts) return {en:st.f,ko:st.ko};
+  const c=pick(f,src); let en,ko;
+  if(c&&typeof c==="object"){en=ko=c.c;} else {const o=s.opts[c||0]||s.opts[0];en=o[0];ko=o[1];}
+  return {en:st.f.replace("___",en),ko:st.ko.replace("___",ko)};
+}
+function renderFrame(f,back){
+  const redraw=()=>{const y=window.scrollY;render();window.scrollTo(0,y);};
+  header(f.label+" 뼈대",back,"빈칸에 들어갈 말만 고르면 1분짜리 답변이 됩니다. 고른 내용은 이 폰에 저장됩니다.");
+  f.steps.forEach((st,i)=>{
+    const c=el("div",{class:"qcard"},el("div",{class:"qhead"},el("span",{class:"badge"},(i+1)+" · "+st.s)));
+    c.append(el("p",{class:"muted",style:"margin:0 0 8px"},"뼈대: "+st.f));
+    if(st.opts){
+      const cur=pick(f,i), custom=cur&&typeof cur==="object";
+      const box=el("div",{class:"chips"});
+      st.opts.forEach((o,oi)=>box.append(el("button",{class:"chip",type:"button","aria-pressed":!custom&&(cur||0)===oi?"true":"false",onclick:()=>{setPick(f,i,oi);redraw();}},o[1])));
+      const wrap=el("div",{class:"custom"+(custom?"":" hidden")});
+      box.append(el("button",{class:"chip",type:"button","aria-pressed":custom?"true":"false",onclick:()=>{wrap.classList.remove("hidden");inp.focus();}},"직접 쓰기"));
+      const inp=el("input",{type:"text",placeholder:"영어로 써 주세요 (예: "+st.opts[0][0]+")",autocomplete:"off",autocapitalize:"off",spellcheck:"false"});
+      inp.value=custom?cur.c:"";
+      const warn=el("p",{class:"notice hidden"},"영어로 써 주세요.");
+      wrap.append(inp,el("button",{class:"pill go",type:"button",onclick:()=>{
+        const v=inp.value.trim();
+        if(!v){setPick(f,i,0);redraw();return;}
+        if(/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(v)){warn.classList.remove("hidden");return;}
+        setPick(f,i,{c:v});redraw();
+      }},"적용"),warn);
+      c.append(box,wrap);
+    } else if(st.ref!=null) c.append(el("p",{class:"muted",style:"margin:0"},"빈칸에는 1번 도입에서 고른 말이 그대로 들어갑니다."));
+    const L=frameLine(f,i);
+    c.append(el("h3",null,"완성 문장 (눌러서 듣고 따라 말하기)"),sentenceRow("f:"+f.id+":"+i,L.en,L.ko,{noTrack:true}));
+    app.append(c);
+  });
+  const full=f.steps.map((_,i)=>frameLine(f,i).en).join(" ");
+  app.append(el("div",{class:"qcard"},el("div",{class:"qhead"},el("span",{class:"badge"},"완성 답변")),
+    el("div",{class:"model"},el("p",null,full),el("div",{style:"display:flex;gap:8px;flex-wrap:wrap"},
+      el("button",{class:"pill",type:"button",html:ICON.play+"<span>듣기</span>",onclick:()=>speak(full)}),
+      el("button",{class:"pill",type:"button",onclick:()=>speak(full,0.75)},"천천히"),
+      el("button",{class:"pill",type:"button",onclick:()=>hush()},"멈춤"))),
+    el("p",{class:"muted",style:"margin:10px 0 0"},"한 줄씩 따라 말한 뒤, 이 답변을 보지 않고 처음부터 끝까지 말해 보세요. 다른 주제 질문에도 이 순서 그대로 답하면 됩니다.")));
+  app.append(el("div",{class:"btn-row"},
+    el("button",{class:"btn",type:"button",onclick:()=>{f.steps.forEach((st,i)=>{if(st.opts) setPick(f,i,Math.floor(Math.random()*st.opts.length));});redraw();}},"무작위 조합으로 바꾸기")));
 }
 
 // ---------- saved ----------
