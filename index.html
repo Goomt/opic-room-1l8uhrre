@@ -640,6 +640,32 @@ function clipControls(key,text,rate){
   draw(); box.redraw=draw; return box;
 }
 
+// ---------- AI 서버 (worker/ 폴더의 Cloudflare Worker) ----------
+// 배포한 Worker 주소. 비어 있거나 AI 코드가 없으면 AI 기능은 모두 숨겨짐.
+// AI 코드는 '내 정보'에서 넣거나, 링크 뒤에 #code=코드 를 붙여 열면 저장됨.
+const AI_URL_DEFAULT="";
+const AI_URL=load("opic-ai-url",null)||AI_URL_DEFAULT; // opic-ai-url은 로컬 테스트용 덮어쓰기
+(function(){ const m=location.hash.match(/code=([^&]+)/); if(m){ save("opic-ai-code",decodeURIComponent(m[1])); try{history.replaceState(null,"",location.pathname+location.search);}catch(e){} } })();
+let AI_CODE=load("opic-ai-code","");
+const aiOn=()=>!!(AI_URL&&AI_CODE);
+async function aiCall(path,payload,audio,prompt){
+  let r;
+  try{ r=await fetch(AI_URL+path+(prompt?"?prompt="+encodeURIComponent(prompt):""),{method:"POST",
+    headers:{"X-Passcode":AI_CODE,"Content-Type":audio?(payload.type||"audio/webm"):"application/json"},
+    body:audio?payload:JSON.stringify(payload||{})}); }
+  catch(e){ throw Object.assign(new Error("network"),{code:"network"}); }
+  const d=await r.json().catch(()=>({error:"server"}));
+  if(!r.ok) throw Object.assign(new Error(d.error||"server"),{code:d.error||"server"});
+  return d;
+}
+const clipBlob=key=>CLIPS.has(key)?fetch(CLIPS.get(key)).then(r=>r.blob()):Promise.resolve(null);
+function aiErr(e){ const c=e&&e.code;
+  return c==="passcode"?"AI 코드가 맞지 않습니다. ‘내 정보’에서 AI 코드를 확인해 주세요."
+    :c==="rate_limited"?"요청이 많아 잠시 막혔습니다. 1분 뒤 다시 해 주세요."
+    :c==="network"?"인터넷 연결을 확인해 주세요."
+    :c==="too_large"?"녹음이 너무 깁니다. 4분 안으로 답해 주세요."
+    :"AI가 지금 응답하지 않습니다. 잠시 뒤 다시 해 주세요."; }
+
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 let srBlocked=false;
 
@@ -670,9 +696,21 @@ function sentenceRow(id,en,ko,opts){
   const favBtn=el("button",{class:"pill"+(FAV.has(id)?" on":""),type:"button",html:(FAV.has(id)?ICON.starOn:ICON.star)+"<span>"+(FAV.has(id)?"저장됨":"저장")+"</span>"});
   favBtn.onclick=()=>{const on=toggleFav(id);favBtn.className="pill"+(on?" on":"");favBtn.innerHTML=(on?ICON.starOn:ICON.star)+"<span>"+(on?"저장됨":"저장")+"</span>"; if(opts.onFav) opts.onFav(on);};
   const sayBtn=el("button",{class:"pill go",type:"button"});
-  const setSay=()=>{ if(SR&&!srBlocked){sayBtn.innerHTML=ICON.mic+"<span>따라 말하기</span>";} else {sayBtn.textContent="소리 내어 말했어요";} };
+  const aiSay=()=>(!SR||srBlocked)&&aiOn()&&CAN_REC; // 브라우저 받아쓰기가 안 되면 녹음해서 AI로 받아씀
+  const setSay=()=>{ if(SR&&!srBlocked||aiSay()){sayBtn.innerHTML=ICON.mic+"<span>따라 말하기</span>";} else {sayBtn.textContent="소리 내어 말했어요";} };
   setSay();
-  sayBtn.onclick=()=>{
+  sayBtn.onclick=async()=>{
+    if(aiSay()){
+      const k="say:"+id;
+      if(clip&&clip.key===k){
+        clip.ui=null; sayBtn.innerHTML="<span>채점 중…</span>"; await stopClip();
+        try{ const t=(await aiCall("/transcribe",await clipBlob(k),true)).text||""; result.textContent=""; showScore(Object.assign(compare(en,t),{heard:t})); }
+        catch(e){ result.textContent=aiErr(e); }
+        sayBtn.classList.remove("rec"); setSay(); return;
+      }
+      hush(); await stopClip();
+      if(await startClip(k)){ sayBtn.classList.add("rec"); sayBtn.innerHTML=ICON.mic+"<span>말한 뒤 탭하면 채점</span>"; result.textContent=""; clip.ui=()=>{ sayBtn.classList.remove("rec"); setSay(); }; return; }
+    }
     if(!SR||srBlocked){ if(!opts.noTrack) markDone(id); row.classList.add("done"); result.textContent="완료로 표시했습니다. 3번 반복해서 말해 보세요."; return; }
     if(activeRec){ stopActive(); setSay(); sayBtn.classList.remove("rec"); return; }
     hush(); stopClip();
@@ -758,8 +796,7 @@ function modelBlock(text,label){
 
 // ---------- state ----------
 const S={tab:"learn",topic:null,
-  mock:{view:"setup",level:"IH",topics:new Set(["home","movies"]),mode:"combo",real:false,queue:[],idx:0,listens:0,lastAI:null},
-  sample:null};
+  mock:{view:"setup",level:"IH",topics:new Set(["home","movies"]),mode:"combo",real:false,queue:[],idx:0,listens:0,lastAI:null}};
 const app=$("app");
 (function(){const m=load("opic-mock-set",null);if(m){S.mock.level=m.level||"IH";S.mock.topics=new Set(m.topics||[]);S.mock.mode=m.mode||"combo";S.mock.real=!!m.real;}})();
 function saveMockSet(){const M=S.mock;save("opic-mock-set",{level:M.level,topics:[...M.topics],mode:M.mode,real:M.real});}
@@ -851,6 +888,7 @@ function renderTopic(){
     q.k.forEach((k,ki)=>c.append(sentenceRow(t.id+":"+qi+":"+ki,k[0],k[1])));
     c.append(modelBlock(q.m,"2분 모범 답안 (IH 목표 · "+lenLabel(q.m)+")"));
     if(q.s) c.append(modelBlock(q.s,"짧은 답안 (IM 목표 · "+lenLabel(q.s)+")"));
+    if(aiOn()) c.append(buildBox(t.id,qi,q));
     app.append(c);
   });
 }
@@ -903,6 +941,41 @@ function renderFrame(f,back){
     el("p",{class:"muted",style:"margin:10px 0 0"},"한 줄씩 따라 말한 뒤, 이 답변을 보지 않고 처음부터 끝까지 말해 보세요. 다른 주제 질문에도 이 순서 그대로 답하면 됩니다.")));
   app.append(el("div",{class:"btn-row"},
     el("button",{class:"btn",type:"button",onclick:()=>{f.steps.forEach((st,i)=>{if(st.opts) setPick(f,i,Math.floor(Math.random()*st.opts.length));});redraw();}},"무작위 조합으로 바꾸기")));
+}
+
+// ---------- AI로 내 이야기 답안 만들기 ----------
+// BUILT["주제:문항"]={notes,en,ko,key:[{en,ko}]}. 폰에 저장.
+let BUILT=load("opic-built",{});
+function builtView(b){
+  const box=el("div");
+  box.append(el("div",{class:"model"},el("p",null,b.en),el("p",{class:"muted"},b.ko),el("div",{style:"display:flex;gap:8px;flex-wrap:wrap"},
+    el("button",{class:"pill",type:"button",html:ICON.play+"<span>듣기</span>",onclick:()=>speak(b.en)}),
+    el("button",{class:"pill",type:"button",onclick:()=>speak(b.en,0.75)},"천천히"),
+    el("button",{class:"pill",type:"button",onclick:()=>hush()},"멈춤"))));
+  if(b.key&&b.key.length){ box.append(el("h3",null,"외워 둘 문장")); b.key.forEach((k,i)=>box.append(sentenceRow("b:"+b.id+":"+i,k.en,k.ko,{noTrack:true}))); }
+  return box;
+}
+function buildBox(tid,qi,q){
+  const key=tid+":"+qi, saved=BUILT[key];
+  const d=el("details",{class:"ans"},el("summary",null,saved?"내가 만든 답안 보기 (AI)":"내 이야기로 2분 답안 만들기 (AI)"));
+  const ta=el("textarea",{placeholder:"한국어로 짧게 적어 주세요. 예: 주말마다 한강에서 자전거 탐, 친구랑 치킨 먹음, 작년에 비 와서 다 젖음"});
+  ta.value=saved?saved.notes:"";
+  const out=el("div"), msg=el("p",{class:"notice hidden"});
+  const btn=el("button",{class:"btn primary block-w",type:"button",style:"margin-top:8px"},saved?"다시 만들기":"답안 만들기");
+  btn.onclick=async()=>{
+    const notes=ta.value.trim(); msg.classList.add("hidden");
+    if(!notes){ msg.textContent="내 경험을 한국어로 한두 줄 적어 주세요."; msg.classList.remove("hidden"); return; }
+    btn.disabled=true; btn.textContent="만드는 중… (10–30초)";
+    try{
+      const r=await aiCall("/build",{question:q.en,type:q.t,level:S.mock.level,notes_ko:notes,me:load("opic-me",null)?ME:{}});
+      BUILT[key]={id:key,notes,en:r.answer_en,ko:r.answer_ko,key:r.key_sentences||[]}; save("opic-built",BUILT);
+      out.textContent=""; out.append(builtView(BUILT[key]));
+    }catch(e){ msg.textContent=aiErr(e); msg.classList.remove("hidden"); }
+    btn.disabled=false; btn.textContent=BUILT[key]?"다시 만들기":"답안 만들기";
+  };
+  d.append(el("p",{class:"muted",style:"margin:0 0 8px"},"내 실제 경험을 한국어로 적으면 AI가 목표 등급("+S.mock.level+")에 맞는 영어 답안으로 만들어 줍니다. 목표 등급은 ‘실전 모의’에서 바꿀 수 있습니다."),ta,btn,msg,out);
+  if(saved) out.append(builtView(saved));
+  return d;
 }
 
 // ---------- saved ----------
@@ -1058,48 +1131,39 @@ function mockQuestion(){
     el("div",{class:"notice hidden",id:"micNotice"}));
   const row=el("div",{class:"btn-row"},
     el("button",{class:"btn primary",type:"button",onclick:()=>{stopRec();M.lastAI={ans:$("answer").value};stopClip().then(()=>{M.view="feedback";render();});}},"모범 답안과 비교"));
-  if(S.sample) row.append(el("button",{class:"btn",type:"button",onclick:askAI},"AI 첨삭 (선택)"));
+  if(aiOn()) row.append(el("button",{class:"btn",type:"button",onclick:askAI},"AI 채점 받기"));
   row.append(el("button",{class:"btn",type:"button",onclick:nextQ},"다음 문항"));
   blk.append(row); app.append(blk);
   drawClock();
 }
 function nextQ(){stopRec();hush();const M=S.mock;M.idx++;if(M.idx>=M.queue.length){M.view="setup";}else M.view="question";render();}
 
-function aiPrompt(q,ans){
-  return `You are an experienced OPIc rater and English speaking coach for Korean office workers preparing for a company promotion exam.
-Target level: ${S.mock.level}
-Question type: ${q.t}
-Question: ${q.en}
-Speaking time: ${secs} seconds (0 = typed)
-Transcript (from speech recognition; ignore punctuation and small recognition errors):
-"""
-${ans}
-"""
-Rate it as an ACTFL OPIc rater would (task completion, sentence vs paragraph-length discourse, fluency, grammar, vocabulary, time frames).
-Return ONLY a JSON object, no markdown fences:
-{"estimated_level":"NH|IL|IM1|IM2|IM3|IH|AL","summary_ko":"2-3 Korean sentences incl. gap to target","scores":{"task":0-100,"fluency":0-100,"grammar":0-100,"vocabulary":0-100,"structure":0-100},"strengths_ko":["2-3 short Korean strings"],"fixes":[{"original":"phrase from answer","corrected":"natural English","why_ko":"short Korean reason"}],"next_tip_ko":"one concrete Korean tip"}
-Up to 5 fixes.`;
-}
+// AI 채점: 녹음이 있으면 서버에서 받아쓰고(Whisper), 그 글로 채점(gpt-6-luna)
 async function askAI(){
   stopRec(); await stopClip();
-  const ans=($("answer").value||"").trim(), words=ans?ans.split(/\s+/).length:0;
-  if(words<15){note("AI 평가에는 15단어 이상이 필요합니다 (지금 "+words+"단어). 받아쓰기가 안 되면 직접 입력하세요.");return;}
-  const M=S.mock, q=curQ();
-  M.lastAI={pending:true,ans}; M.view="feedback"; render();
+  const M=S.mock, q=curQ(), key=mockKey(), sec=secs, hasClip=CLIPS.has(key);
+  let ans=(($("answer")&&$("answer").value)||(M.lastAI&&M.lastAI.ans)||"").trim();
+  if(!hasClip&&ans.split(/\s+/).filter(Boolean).length<15){ note("AI 채점에는 녹음한 답변이나 15단어 이상 입력한 답변이 필요합니다."); return; }
+  const show=()=>{ if(S.tab==="mock"&&M.view==="feedback") render(); };
+  M.lastAI={pending:true,ans,step:hasClip?"내 녹음을 받아쓰는 중입니다.":"답변을 채점하는 중입니다."}; M.view="feedback"; render();
   try{
-    const r=await S.sample.json(aiPrompt(q,ans),{cache:false});
+    if(hasClip){
+      const t=((await aiCall("/transcribe",await clipBlob(key),true,q.en)).text||"").trim();
+      if(t) ans=t;
+      M.lastAI={pending:true,ans,step:"답변을 채점하는 중입니다."}; show();
+    }
+    const r=await aiCall("/feedback",{question:q.en,type:q.t,level:M.level,seconds:sec,answer:ans});
     M.lastAI={ans,r};
     const d=new Date(); HIST.unshift({date:(d.getMonth()+1)+"/"+d.getDate(),type:q.topic+" · "+q.t,level:r.estimated_level||"?"}); HIST=HIST.slice(0,15); save("opic-history",HIST);
-  }catch(e){
-    M.lastAI={ans,err:e&&e.code==="not_granted"?"Claude 사용이 허용되지 않았습니다. 새로고침 후 허용하면 쓸 수 있습니다.":e&&e.code==="rate_limited"?"요청이 많아 잠시 막혔습니다. 1분 뒤 다시 시도하세요.":"AI 피드백을 만들지 못했습니다. 아래 모범 답안과 비교해 보세요."};
-  }
-  if(S.tab==="mock"&&M.view==="feedback") render();
+  }catch(e){ M.lastAI={ans,err:aiErr(e)}; }
+  show();
 }
 function mockFeedback(){
   const M=S.mock, q=curQ(), ai=M.lastAI;
   header("비교·피드백",()=>{M.view="question";render();},q.topic+" · "+q.t);
-  if(ai&&ai.pending) app.append(el("div",{class:"block"},el("p",{class:"muted",style:"margin:0"},"AI가 답변을 평가하는 중입니다. 보통 10–30초 걸립니다. 그동안 아래 모범 답안을 들어 보세요.")));
+  if(ai&&ai.pending) app.append(el("div",{class:"block"},el("p",{class:"muted",style:"margin:0"},(ai.step||"AI가 답변을 평가하는 중입니다.")+" 보통 10–30초 걸립니다. 그동안 아래 모범 답안을 들어 보세요.")));
   if(ai&&ai.err) app.append(el("div",{class:"notice",style:"margin-bottom:14px"},ai.err));
+  if(aiOn()&&!(ai&&(ai.pending||ai.r))) app.append(el("button",{class:"btn primary block-w",type:"button",style:"margin-bottom:14px",onclick:askAI},"AI 채점 받기 (예상 등급 · 교정 · 내 답 고쳐 쓰기)"));
   if(ai&&ai.r){
     const r=ai.r, b=el("div",{class:"block"});
     b.append(el("div",{class:"level"},el("b",null,r.estimated_level||"?"),el("span",{class:"muted"},"예상 등급 · 목표 "+M.level)),el("p",{class:"muted"},r.summary_ko||""));
@@ -1108,7 +1172,17 @@ function mockFeedback(){
     b.append(bars);
     if(r.strengths_ko&&r.strengths_ko.length){b.append(el("h2",{style:"margin-top:16px"},"잘한 점"),el("ul",{class:"plain"},r.strengths_ko.map(s=>el("li",null,s))));}
     if(r.fixes&&r.fixes.length){b.append(el("h2",{style:"margin-top:16px"},"고칠 표현"));r.fixes.forEach(f=>b.append(el("div",{class:"fix"},el("del",null,f.original),el("ins",null,f.corrected),el("p",null,f.why_ko))));}
+    if(r.longer_tip_ko) b.append(el("h2",{style:"margin-top:16px"},"2분 채우는 법"),el("p",{style:"margin:0"},r.longer_tip_ko));
     if(r.next_tip_ko) b.append(el("div",{class:"notice"},"다음 시도: "+r.next_tip_ko));
+    if(r.improved_en){
+      b.append(el("h2",{style:"margin-top:16px"},"내 답을 "+M.level+" 수준으로 고쳐 쓴 답안"),
+        el("div",{class:"model"},el("p",null,r.improved_en),el("div",{style:"display:flex;gap:8px;flex-wrap:wrap"},
+          el("button",{class:"pill",type:"button",html:ICON.play+"<span>듣기</span>",onclick:()=>speak(r.improved_en)}),
+          el("button",{class:"pill",type:"button",onclick:()=>speak(r.improved_en,0.75)},"천천히"),
+          el("button",{class:"pill",type:"button",onclick:()=>hush()},"멈춤"))));
+      if(CLIPS.has(mockKey())) b.append(el("p",{class:"muted",style:"margin:10px 0 0"},"내 녹음과 고쳐 쓴 답안 번갈아 듣기"),clipControls(mockKey(),r.improved_en,0.9));
+      if(r.key_sentences&&r.key_sentences.length){ b.append(el("h3",null,"외워 둘 문장")); r.key_sentences.forEach((k,i)=>b.append(sentenceRow("ai:"+q.tid+":"+q.qi+":"+i,k.en,k.ko,{noTrack:true}))); }
+    }
     app.append(b);
   }
   const mine=(ai&&ai.ans)||($("answer")&&$("answer").value)||"";
@@ -1121,6 +1195,7 @@ function mockFeedback(){
     el("button",{class:"pill",type:"button",html:ICON.play+"<span>듣기</span>",onclick:()=>speak(main)}),
     el("button",{class:"pill",type:"button",onclick:()=>speak(main,0.75)},"천천히"),
     el("button",{class:"pill",type:"button",onclick:()=>hush()},"멈춤"))));
+  const mine2=BUILT[q.tid+":"+q.qi]; if(mine2) mb.append(modelBlock(mine2.en,"내가 만든 답안 (AI · "+lenLabel(mine2.en)+")"));
   if(other) mb.append(modelBlock(other,(shortFirst?"2분 모범 답안 (IH 목표 · ":"짧은 답안 (IM 목표 · ")+lenLabel(other)+")"));
   if(secs) mb.append(el("p",{class:"muted",style:"margin:8px 0 0"},"내 답변 시간 "+Math.floor(secs/60)+":"+String(secs%60).padStart(2,"0")+(secs<90?" · 실전에서는 1분 30초 이상 말하는 게 좋아요. ‘만능 표현 → 길게 늘리기’ 문장을 끼워 보세요.":" · 좋은 길이예요.")));
   mb.append(el("h3",null,"핵심 문장 따라 말하기"));
@@ -1170,6 +1245,18 @@ function showMe(){
   });
   const prev=el("div",{class:"preview","aria-live":"polite"}), err=el("div",{class:"notice hidden"});
   sh.append(el("p",{class:"step",style:"margin:4px 0"},"미리 보기"),prev,err);
+  // AI 코드: 서버가 준비된 경우에만 보임. 받은 코드를 넣으면 AI 채점·답안 만들기가 켜짐
+  const codeIn=el("input",{type:"text",placeholder:"받은 AI 코드",autocomplete:"off",autocapitalize:"off",spellcheck:"false"});
+  codeIn.value=AI_CODE;
+  if(AI_URL){
+    const res=el("p",{class:"muted",style:"margin:6px 0 0"});
+    sh.append(el("div",{class:"field",style:"margin-top:14px"},el("span",null,"AI 코드"),
+      el("div",{class:"custom",style:"margin:0"},codeIn,el("button",{class:"pill",type:"button",onclick:async()=>{
+        const old=AI_CODE; AI_CODE=codeIn.value.trim(); res.textContent="확인 중…";
+        try{ await aiCall("/ping",{}); res.textContent="연결됐어요. 저장을 누르면 AI 기능이 켜집니다."; }catch(e){ res.textContent=aiErr(e); }
+        AI_CODE=old;
+      }},"연결 확인")),res));
+  }
   const read=()=>{const v={};for(const k in inputs){const s=inputs[k].value.trim();v[k]=s?(k==="age"||k==="years"?clampN(s):s):ME_DEF[k];}return v;};
   const bad=()=>Object.keys(inputs).filter(k=>k.endsWith("En")&&/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(inputs[k].value));
   function draw(){
@@ -1185,6 +1272,7 @@ function showMe(){
       if(bad().length){draw();return;}
       const v=read(), changed=Object.keys(v).some(k=>v[k]!==ME_DEF[k]);
       ME=v; changed?save("opic-me",v):(()=>{try{localStorage.removeItem("opic-me");}catch(e){}})();
+      if(AI_URL){ AI_CODE=codeIn.value.trim(); save("opic-ai-code",AI_CODE); }
       applyMe(); close(); render();
     }},"저장")),
     el("button",{class:"btn block-w",type:"button",style:"margin-top:8px",onclick:close},"닫기"));
@@ -1216,9 +1304,6 @@ function showGuide(){
 // ---------- init ----------
 render();
 if(!load("opic-onboarded",false)) showGuide();
-if(window.claude&&window.claude.use){
-  window.claude.use("sample").then(s=>{S.sample=s; if(s&&S.tab==="mock"&&S.mock.view==="question"){/* show AI button on next render */}}).catch(()=>{});
-}
 })();
 </script>
 </body></html>
