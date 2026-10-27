@@ -159,6 +159,19 @@ ul.plain{margin:0;padding-left:1.2em}
 .sheet .dots{display:flex;gap:6px;margin:14px 0}
 .sheet .dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
 .sheet .dots i.on{background:var(--green)}
+.sheet.tall{max-height:calc(100vh - 32px);overflow-y:auto}
+.mebar{display:flex;align-items:center;gap:10px;width:100%;border:1px dashed var(--green);background:var(--surface);border-radius:14px;padding:12px 14px;margin-bottom:12px;text-align:left;cursor:pointer;min-height:56px}
+.mebar b{display:block;font-size:.98rem}
+.mebar small{display:block;color:var(--ink-2);font-size:.82rem}
+.mebar span:first-child{flex:1}
+.mebar .go-txt{color:var(--green);font-weight:700;font-size:.9rem;white-space:nowrap}
+.field{margin:0 0 12px}
+.field>span{display:block;font-weight:500;font-size:.92rem;margin-bottom:4px}
+.field .pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field label small{display:block;color:var(--ink-2);font-size:.75rem;margin-bottom:2px}
+.field input{width:100%;min-height:44px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:16px;background:var(--mist);color:var(--ink)}
+.field input.bad{border-color:var(--red);background:var(--red-soft)}
+.preview{background:var(--green-soft);border-radius:12px;padding:10px 12px;font-size:.9rem;line-height:1.6;margin:4px 0 12px}
 .helpbtn{height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface);padding:0 14px;cursor:pointer;font-size:.92rem}
 </style>
 </head>
@@ -200,13 +213,13 @@ const UNIV = [
 const TOPICS = [
 {id:"intro", label:"자기소개", kind:"intro", qs:[
  {t:"자기소개", en:"Let’s start the interview now. Tell me a little bit about yourself.", ko:"인터뷰를 시작하겠습니다. 자기소개를 해주세요.",
-  k:[["Hi, my name is Minsu Kim, and I’m thirty-two years old.","안녕하세요, 제 이름은 김민수이고 서른두 살입니다. (이름·나이는 본인 것으로)"],
-     ["I work for an IT company in Seoul as a software engineer.","서울에 있는 IT 회사에서 소프트웨어 엔지니어로 일합니다."],
-     ["I’ve been working there for about five years.","그곳에서 5년째 일하고 있습니다."],
+  k:[["Hi, my name is {NAME}, and I’m {AGE} years old.","안녕하세요, 제 이름은 {NAME_KO}이고 {AGE_KO} 살입니다."],
+     ["I work for {COMPANY} as {A_JOB}.","{COMPANY_KO}에서 {JOB_RO} 일합니다."],
+     ["I’ve been working there for about {YEARS}.","그곳에서 {YEARS_KO}째 일하고 있습니다."],
      ["I live in an apartment with my family.","가족과 함께 아파트에 삽니다."],
      ["In my free time, I like watching movies and going for a walk.","여가 시간엔 영화 보기와 산책을 좋아합니다."],
      ["I think I’m a friendly and easygoing person.","저는 친근하고 무던한 사람인 것 같아요."]],
-  m:"Hi, my name is Minsu Kim, and I’m thirty-two years old. I work for an IT company in Seoul as a software engineer, and I’ve been working there for about five years. My job is pretty busy, but I really like my team. I live in an apartment with my family. In my free time, I like watching movies and going for a walk in the park near my place. It helps me relieve stress. I think I’m a friendly and easygoing person. That’s a little bit about me."}]},
+  m:"Hi, my name is {NAME}, and I’m {AGE} years old. I work for {COMPANY} as {A_JOB}, and I’ve been working there for about {YEARS}. My job is pretty busy, but I really like my team. I live in an apartment with my family. In my free time, I like watching movies and going for a walk in the park near my place. It helps me relieve stress. I think I’m a friendly and easygoing person. That’s a little bit about me."}]},
 {id:"home", label:"집", kind:"survey", qs:[
  {t:"묘사", en:"Please describe the place where you live. What does it look like, and how many rooms does it have?", ko:"사는 곳을 묘사해 주세요. 어떻게 생겼고 방은 몇 개인가요?",
   k:[["I live in a three-bedroom apartment on the tenth floor.","10층에 있는 방 세 개짜리 아파트에 삽니다."],
@@ -231,12 +244,12 @@ const TOPICS = [
   m:"I still remember when I changed the wallpaper in my room last year. The old wallpaper was too dark and old-fashioned, so I always felt a little gloomy in my room. So I decided to change it myself. I went to a store and chose a light gray color. My brother helped me, and it took about two days to finish. It was harder than I expected, and we made a lot of mistakes. But in the end, it turned out great. Now my room looks much brighter and bigger, and I feel happy whenever I walk in."}]},
 {id:"neighborhood", label:"동네", kind:"survey", qs:[
  {t:"묘사", en:"Describe your neighborhood. What is it like, and what kinds of places can people find there?", ko:"동네를 묘사해 주세요. 어떤 곳이고 어떤 장소들이 있나요?",
-  k:[["I live in a quiet neighborhood in the northwest part of Seoul.","서울 서북쪽의 조용한 동네에 살아요."],
+  k:[["I live in a quiet neighborhood in {TOWN}.","{TOWN_KO}의 조용한 동네에 살아요."],
      ["It’s only five minutes from the subway station.","지하철역에서 5분밖에 안 걸려요."],
      ["There are lots of restaurants, cafés, and a big supermarket.","식당, 카페, 큰 마트가 많아요."],
      ["There’s also a small park where people walk their dogs.","사람들이 개를 산책시키는 작은 공원도 있어요."],
      ["It’s a really convenient place to live.","살기 정말 편한 곳이에요."]],
-  m:"I live in a quiet neighborhood in the northwest part of Seoul. It’s only five minutes from the subway station, so it’s easy to get around. There are lots of restaurants, cafés, and a big supermarket near my apartment. There’s also a small park where people walk their dogs or jog in the evening. Most of the people here are families with kids, so it’s pretty peaceful. The only problem is that parking is a little difficult. But overall, it’s a really convenient place to live, and I’m happy here."},
+  m:"I live in a quiet neighborhood in {TOWN}. It’s only five minutes from the subway station, so it’s easy to get around. There are lots of restaurants, cafés, and a big supermarket near my apartment. There’s also a small park where people walk their dogs or jog in the evening. Most of the people here are families with kids, so it’s pretty peaceful. The only problem is that parking is a little difficult. But overall, it’s a really convenient place to live, and I’m happy here."},
  {t:"루틴", en:"Where do you usually go in your neighborhood, and what do you do there?", ko:"동네에서 주로 어디에 가고 무엇을 하나요?",
   k:[["I often go to the supermarket near my place.","집 근처 마트에 자주 가요."],
      ["I usually walk because everything is close.","다 가까워서 보통 걸어 다녀요."],
@@ -459,6 +472,26 @@ let HIST=load("opic-history",[]);
 const markDone=id=>{DONE.add(id);save("opic-done",[...DONE]);};
 function toggleFav(id){FAV.has(id)?FAV.delete(id):FAV.add(id);save("opic-fav",[...FAV]);return FAV.has(id);}
 
+// ---------- my info (fills {TOKENS} in sentences) ----------
+const ME_DEF={nameKo:"김민수",nameEn:"Minsu Kim",age:32,jobKo:"소프트웨어 엔지니어",jobEn:"software engineer",coKo:"서울에 있는 IT 회사",coEn:"an IT company in Seoul",years:5,townKo:"서울 서북쪽",townEn:"the northwest part of Seoul"};
+let ME=Object.assign({},ME_DEF,load("opic-me",{}));
+const TPL=JSON.parse(JSON.stringify(TOPICS));
+const ONES=["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+const TENS=["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+const clampN=n=>Math.max(1,Math.min(99,Math.round(+n)||1));
+function enNum(n){n=clampN(n);return n<20?ONES[n]:TENS[Math.floor(n/10)]+(n%10?"-"+ONES[n%10]:"");}
+function koAge(n){n=clampN(n);if(n===20)return "스무";const T=["","열","스물","서른","마흔","쉰","예순","일흔","여든","아흔"],U=["","한","두","세","네","다섯","여섯","일곱","여덟","아홉"];return T[Math.floor(n/10)]+U[n%10];}
+function withRo(w){const c=w.charCodeAt(w.length-1)-0xAC00, j=c>=0&&c<11172?c%28:0;return w+(j&&j!==8?"으로":"로");}
+function aJob(w){w=w.replace(/^(a|an)\s+/i,"");return (/^[aeiou]/i.test(w)?"an ":"a ")+w;}
+function applyMe(){
+  const m=ME, y=clampN(m.years);
+  const V={NAME:m.nameEn,NAME_KO:m.nameKo,AGE:enNum(m.age),AGE_KO:koAge(m.age),A_JOB:aJob(m.jobEn),JOB_RO:withRo(m.jobKo),
+    COMPANY:m.coEn,COMPANY_KO:m.coKo,YEARS:enNum(y)+(y===1?" year":" years"),YEARS_KO:y+"년",TOWN:m.townEn,TOWN_KO:m.townKo};
+  const fill=s=>s.replace(/\{([A-Z_]+)\}/g,(x,k)=>k in V?V[k]:x);
+  TPL.forEach((t,ti)=>t.qs.forEach((o,qi)=>{const q=TOPICS[ti].qs[qi];q.en=fill(o.en);q.ko=fill(o.ko);q.m=fill(o.m);q.k=o.k.map(p=>[fill(p[0]),fill(p[1])]);}));
+}
+applyMe();
+
 function sentence(id){
   const p=id.split(":");
   if(p[0]==="u"){const it=UNIV[+p[1]].items[+p[2]];return {en:it[0],ko:it[1],from:"만능 표현 · "+UNIV[+p[1]].g};}
@@ -634,6 +667,7 @@ function renderLearn(){
   app.append(el("div",{class:"stats"},
     el("div",null,el("b",null,DONE.size+" / "+TOTAL),el("span",null,"따라 말한 문장")),
     el("div",null,el("b",null,FAV.size),el("span",null,"저장한 문장"))));
+  app.append(meBar());
   const card=(title,small,ids,onclick,wide)=>{
     const d=ids.filter(i=>DONE.has(i)).length;
     return el("button",{class:"tcard"+(wide?" wide":""),type:"button",onclick},
@@ -667,6 +701,7 @@ function renderTopic(){
   }
   const t=byId(S.topic);
   header(t.label,back,"핵심 문장을 하나씩 따라 말한 뒤, 모범 답안 전체를 들어 보세요.");
+  if(t.id==="intro"||t.id==="neighborhood") app.append(meBar());
   t.qs.forEach((q,qi)=>{
     const c=el("div",{class:"qcard"});
     c.append(el("div",{class:"qhead"},el("span",{class:"badge"},q.t),
@@ -855,11 +890,66 @@ function mockFeedback(){
     el("button",{class:"btn",type:"button",onclick:()=>{M.view="question";render();}},"같은 문항 다시")));
 }
 
+// ---------- my info ----------
+function meBar(){
+  const set=!!load("opic-me",null);
+  return el("button",{class:"mebar",type:"button",onclick:showMe},
+    el("span",null,
+      el("b",null,set?"내 정보 · "+ME.nameKo+", "+koAge(ME.age)+" 살, "+ME.jobKo:"모범 답안을 내 이야기로 바꾸기"),
+      el("small",null,set?"모범 답안과 예문에 이 정보가 들어갑니다.":"이름·나이·직업·동네를 넣으면 예시 대신 내 정보가 들어갑니다.")),
+    el("span",{class:"go-txt"},set?"바꾸기":"입력"));
+}
+const ME_FIELDS=[
+  ["이름",[["nameKo","한글"],["nameEn","영어"]]],
+  ["나이",[["age","숫자","num"]]],
+  ["직업",[["jobKo","한글"],["jobEn","영어"]]],
+  ["회사",[["coKo","한글"],["coEn","영어"]]],
+  ["근무 기간 (몇 년째)",[["years","숫자","num"]]],
+  ["사는 동네",[["townKo","한글"],["townEn","영어"]]]
+];
+function showMe(){
+  const ov=el("div",{class:"overlay",role:"dialog","aria-modal":"true","aria-label":"내 정보"}), sh=el("div",{class:"sheet tall"}); ov.append(sh);
+  const inputs={};
+  sh.append(el("h2",null,"내 정보"),
+    el("p",null,"모범 답안과 예문 속 이름·나이·직업·동네가 아래 내용으로 바뀝니다. 영어 칸은 영어로 써 주세요. 비워 두면 예시가 그대로 나옵니다."));
+  ME_FIELDS.forEach(([label,cols])=>{
+    const box=el("div",{class:cols.length>1?"pair":""});
+    cols.forEach(([k,sub,type])=>{
+      const inp=el("input",{type:type==="num"?"number":"text",inputmode:type==="num"?"numeric":"text",min:"1",max:"99",placeholder:String(ME_DEF[k]),autocomplete:"off",autocapitalize:"off",spellcheck:"false"});
+      inp.value=String(ME[k]===ME_DEF[k]?"":ME[k]); inp.oninput=draw; inputs[k]=inp;
+      box.append(el("label",null,el("small",null,sub),inp));
+    });
+    sh.append(el("div",{class:"field"},el("span",null,label),box));
+  });
+  const prev=el("div",{class:"preview","aria-live":"polite"}), err=el("div",{class:"notice hidden"});
+  sh.append(el("p",{class:"step",style:"margin:4px 0"},"미리 보기"),prev,err);
+  const read=()=>{const v={};for(const k in inputs){const s=inputs[k].value.trim();v[k]=s?(k==="age"||k==="years"?clampN(s):s):ME_DEF[k];}return v;};
+  const bad=()=>Object.keys(inputs).filter(k=>k.endsWith("En")&&/[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(inputs[k].value));
+  function draw(){
+    const v=read(), b=bad();
+    Object.keys(inputs).forEach(k=>inputs[k].classList.toggle("bad",b.includes(k)));
+    prev.textContent="Hi, my name is "+v.nameEn+", and I’m "+enNum(v.age)+" years old. I work for "+v.coEn+" as "+aJob(v.jobEn)+".";
+    err.classList.toggle("hidden",!b.length); err.textContent="빨간 칸은 영어로 써 주세요.";
+  }
+  const close=()=>ov.remove();
+  sh.append(el("div",{class:"btn-row"},
+    el("button",{class:"btn",type:"button",onclick:()=>{for(const k in inputs) inputs[k].value="";draw();}},"예시로 되돌리기"),
+    el("button",{class:"btn primary",type:"button",onclick:()=>{
+      if(bad().length){draw();return;}
+      const v=read(), changed=Object.keys(v).some(k=>v[k]!==ME_DEF[k]);
+      ME=v; changed?save("opic-me",v):(()=>{try{localStorage.removeItem("opic-me");}catch(e){}})();
+      applyMe(); close(); render();
+    }},"저장")),
+    el("button",{class:"btn block-w",type:"button",style:"margin-top:8px",onclick:close},"닫기"));
+  ov.onclick=e=>{if(e.target===ov) close();};
+  draw(); document.body.append(ov); inputs.nameKo.focus();
+}
+
 // ---------- guide ----------
 const GUIDE=[
   ["듣고 따라 말하기","문장을 누르면 원어민 목소리가 나옵니다. 초록색 ‘따라 말하기’ 버튼을 누르고 똑같이 말하면 몇 % 맞았는지 알려 줍니다. 빨간 단어만 다시 연습하면 됩니다."],
   ["마이크 허용","처음 말할 때 ‘마이크 허용’ 창이 뜨면 허용을 눌러 주세요. 마이크가 안 되면 버튼이 ‘소리 내어 말했어요’로 바뀝니다. 소리 내어 따라 한 뒤 누르면 됩니다. 소리가 안 들리면 무음 모드를 꺼 주세요."],
-  ["이 순서로 하세요","① 자기소개 → ② 만능 표현 → ③ 내 주제 2~3개 → 익숙해지면 아래 ‘실전 모의’ 탭에서 시험처럼 연습합니다. 하루 10문장이면 충분합니다."]
+  ["이 순서로 하세요","① 자기소개 → ② 만능 표현 → ③ 내 주제 2~3개 → 익숙해지면 아래 ‘실전 모의’ 탭에서 시험처럼 연습합니다. 하루 10문장이면 충분합니다. 첫 화면의 ‘내 정보’에 이름·나이·직업을 넣으면 모범 답안이 내 이야기로 바뀝니다."]
 ];
 function showGuide(){
   let i=0; const ov=el("div",{class:"overlay",role:"dialog","aria-modal":"true"}); const sh=el("div",{class:"sheet"}); ov.append(sh);
