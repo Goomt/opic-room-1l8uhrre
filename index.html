@@ -497,6 +497,9 @@ const FRAMES = [
   opts:[["relieved","안도했어요"],["surprised","놀랐어요"],["happy","기뻤어요"]]},
  {s:"마무리", f:"To make a long story short, it was an experience I’ll never forget.", ko:"간단히 말하면, 절대 잊지 못할 경험이었어요."}]}
 ];
+</script>
+<script src="data-more.js?v=1"></script>
+<script>
 (function(){
 "use strict";
 const LEVELS=["IM1","IM2","IM3","IH","AL"];
@@ -552,7 +555,7 @@ function applyMe(){
   const V={NAME:m.nameEn,NAME_KO:m.nameKo,AGE:enNum(m.age),AGE_KO:koAge(m.age),A_JOB:aJob(m.jobEn),JOB_RO:withRo(m.jobKo),
     COMPANY:m.coEn,COMPANY_KO:m.coKo,YEARS:enNum(y)+(y===1?" year":" years"),YEARS_KO:y+"년",TOWN:m.townEn,TOWN_KO:m.townKo};
   const fill=s=>s.replace(/\{([A-Z_]+)\}/g,(x,k)=>k in V?V[k]:x);
-  TPL.forEach((t,ti)=>t.qs.forEach((o,qi)=>{const q=TOPICS[ti].qs[qi];q.en=fill(o.en);q.ko=fill(o.ko);q.m=fill(o.m);q.k=o.k.map(p=>[fill(p[0]),fill(p[1])]);}));
+  TPL.forEach((t,ti)=>t.qs.forEach((o,qi)=>{const q=TOPICS[ti].qs[qi];q.en=fill(o.en);q.ko=fill(o.ko);q.m=fill(o.m);if(o.s)q.s=fill(o.s);q.k=o.k.map(p=>[fill(p[0]),fill(p[1])]);}));
 }
 applyMe();
 
@@ -740,6 +743,8 @@ function sentenceRow(id,en,ko,opts){
   return row;
 }
 
+// 약 110단어/분 기준으로 말하는 시간 표시
+function lenLabel(text){const w=text.split(/\s+/).length, s=Math.round(w/110*60/10)*10;return "약 "+w+"단어 · "+(s>=60?Math.floor(s/60)+"분 "+(s%60?s%60+"초":""):s+"초").trim();}
 function modelBlock(text,label){
   const d=el("details",{class:"ans"}, el("summary",null,label||"모범 답안 전체 보기"));
   d.append(el("div",{class:"model"},
@@ -810,7 +815,7 @@ function renderLearn(){
   app.append(grid1);
   app.append(el("p",{class:"group-h"},"③ 내 주제 2~3개 골라서 연습"));
   const g2=el("div",{class:"tlist"});
-  SURVEY.forEach(t=>g2.append(card(t.label,"3문항",topicIds(t),()=>{S.topic=t.id;render();})));
+  SURVEY.forEach(t=>g2.append(card(t.label,t.qs.length+"문항",topicIds(t),()=>{S.topic=t.id;render();})));
   app.append(g2);
   app.append(el("p",{class:"group-h"},"④ 익숙해지면 롤플레이 · 돌발"));
   const g3=el("div",{class:"tlist"});
@@ -844,7 +849,8 @@ function renderTopic(){
       el("button",{class:"iconbtn",type:"button","aria-label":"질문 듣기",html:ICON.play,onclick:()=>speak(q.en)})));
     c.append(el("p",{class:"qen"},q.en), el("p",{class:"qko"},q.ko), el("h3",null,"핵심 문장"));
     q.k.forEach((k,ki)=>c.append(sentenceRow(t.id+":"+qi+":"+ki,k[0],k[1])));
-    c.append(modelBlock(q.m));
+    c.append(modelBlock(q.m,"2분 모범 답안 (IH 목표 · "+lenLabel(q.m)+")"));
+    if(q.s) c.append(modelBlock(q.s,"짧은 답안 (IM 목표 · "+lenLabel(q.s)+")"));
     app.append(c);
   });
 }
@@ -964,7 +970,7 @@ function mockSetup(){
   const M=S.mock;
   header("실전 모의",null,"실제 시험처럼 질문을 듣고 2분 안에 답해 봅니다. 고른 설정은 이 폰에 저장됩니다.");
   app.append(el("div",{class:"block"},el("h2",null,"목표 등급"),chipGroup(LEVELS.map(l=>({id:l,label:l})),id=>M.level===id,id=>M.level=id)));
-  const tb=el("div",{class:"block"},el("h2",null,"서베이 주제"),el("p",{class:"muted",style:"margin:-6px 0 10px"},"자기소개 다음에 고른 주제별로 묘사 → 루틴 → 경험 3문항이 나옵니다."),
+  const tb=el("div",{class:"block"},el("h2",null,"서베이 주제"),el("p",{class:"muted",style:"margin:-6px 0 10px"},"자기소개 다음에 고른 주제별로 묘사 → 루틴 또는 과거 비교 → 경험 3문항이 실제 시험처럼 무작위로 나옵니다."),
     chipGroup(SURVEY.map(t=>({id:t.id,label:t.label})),id=>M.topics.has(id),id=>{M.topics.has(id)?M.topics.delete(id):M.topics.add(id);}));
   app.append(el("div",{class:"block"},el("h2",null,"연습 유형"),chipGroup(MODES,id=>M.mode===id,id=>{M.mode=id;tb.style.opacity=id==="combo"?1:.45;}),
     el("label",{class:"switch"},(()=>{const c=el("input",{type:"checkbox"});c.checked=M.real;c.onchange=()=>M.real=c.checked;return c;})(),"실전 모드: 질문 텍스트를 가리고 듣기 2회 제한")));
@@ -981,7 +987,9 @@ function startMock(){
   if(M.mode==="combo"){
     const intro=byId("intro"); q.push({tid:"intro",qi:0});
     const ks=M.topics.size?[...M.topics]:SURVEY.map(t=>t.id);
-    shuffle(ks).forEach(k=>byId(k).qs.forEach((_,qi)=>q.push({tid:k,qi})));
+    // 실제 시험처럼 주제마다 묘사 → 루틴/비교 → 경험을 하나씩 무작위로 뽑음
+    const pick=(t,types)=>{const c=[];t.qs.forEach((x,qi)=>{if(types.includes(x.t))c.push(qi);});return c[Math.floor(Math.random()*c.length)];};
+    shuffle(ks).forEach(k=>{const t=byId(k);[["묘사"],["루틴","비교"],["경험"]].forEach(ty=>{const qi=pick(t,ty);if(qi!=null)q.push({tid:k,qi});});});
   } else q=shuffle(byId(M.mode).qs.map((_,qi)=>({tid:M.mode,qi})));
   M.queue=q; M.idx=0; M.view="question"; render();
 }
@@ -1038,7 +1046,7 @@ function mockQuestion(){
   app.append(el("div",{class:"recorder",html:
     '<div class="ring" id="ring"><svg class="arc" viewBox="0 0 168 168" aria-hidden="true"><circle class="track" cx="84" cy="84" r="72"/><circle class="prog" id="prog" cx="84" cy="84" r="72" style="stroke-dasharray:'+CIRC+';stroke-dashoffset:'+CIRC+'"/></svg>'+
     '<button class="mic" id="micBtn" type="button"><span>'+ICON.mic+'<span id="micLabel">답변 시작</span></span></button></div>'+
-    '<div class="clock"><span id="clockTxt">0:00</span><small>권장 1:00–2:00</small></div>'}));
+    '<div class="clock"><span id="clockTxt">0:00</span><small>권장 1:30–2:00</small></div>'}));
   $("micBtn").onclick=()=>recording?stopRec():startRec();
   const hintBox=el("div",{class:"hintbox hidden"});
   q.k.forEach(k=>hintBox.append(el("p",null,k[0],el("small",null,k[1]))));
@@ -1104,19 +1112,24 @@ function mockFeedback(){
     app.append(b);
   }
   const mine=(ai&&ai.ans)||($("answer")&&$("answer").value)||"";
-  const mb=el("div",{class:"qcard"},el("div",{class:"qhead"},el("span",{class:"badge"},"모범 답안")),
+  // 목표가 IM이면 짧은 답안을, IH·AL이면 2분 답안을 먼저 보여줌
+  const shortFirst=/^IM/.test(M.level)&&q.s, main=shortFirst?q.s:q.m, other=shortFirst?q.m:q.s;
+  const mainName=shortFirst?"짧은 답안 (IM 목표)":"2분 모범 답안 (IH 목표)";
+  const mb=el("div",{class:"qcard"},el("div",{class:"qhead"},el("span",{class:"badge"},mainName),el("span",{class:"muted"},lenLabel(main))),
     el("p",{class:"qen"},q.en));
-  mb.append(el("div",{class:"model"},el("p",null,q.m),el("div",{style:"display:flex;gap:8px;flex-wrap:wrap"},
-    el("button",{class:"pill",type:"button",html:ICON.play+"<span>듣기</span>",onclick:()=>speak(q.m)}),
-    el("button",{class:"pill",type:"button",onclick:()=>speak(q.m,0.75)},"천천히"),
+  mb.append(el("div",{class:"model"},el("p",null,main),el("div",{style:"display:flex;gap:8px;flex-wrap:wrap"},
+    el("button",{class:"pill",type:"button",html:ICON.play+"<span>듣기</span>",onclick:()=>speak(main)}),
+    el("button",{class:"pill",type:"button",onclick:()=>speak(main,0.75)},"천천히"),
     el("button",{class:"pill",type:"button",onclick:()=>hush()},"멈춤"))));
+  if(other) mb.append(modelBlock(other,(shortFirst?"2분 모범 답안 (IH 목표 · ":"짧은 답안 (IM 목표 · ")+lenLabel(other)+")"));
+  if(secs) mb.append(el("p",{class:"muted",style:"margin:8px 0 0"},"내 답변 시간 "+Math.floor(secs/60)+":"+String(secs%60).padStart(2,"0")+(secs<90?" · 실전에서는 1분 30초 이상 말하는 게 좋아요. ‘만능 표현 → 길게 늘리기’ 문장을 끼워 보세요.":" · 좋은 길이예요.")));
   mb.append(el("h3",null,"핵심 문장 따라 말하기"));
   q.k.forEach((k,ki)=>mb.append(sentenceRow(q.tid+":"+q.qi+":"+ki,k[0],k[1])));
   app.append(mb);
   const key=mockKey();
   if(CLIPS.has(key)) app.append(el("div",{class:"block"},el("h2",null,"내 녹음과 비교"),
     el("p",{class:"muted",style:"margin:0"},"내 답변 녹음과 모범 답안을 번갈아 들으며 억양과 속도 차이를 느껴 보세요. 녹음은 새로고침하면 사라집니다."),
-    clipControls(key,q.m,0.9)));
+    clipControls(key,main,0.9)));
   else if(CAN_REC) app.append(el("p",{class:"muted"},"‘답변 시작’을 누르고 말하면 내 답변이 녹음되어 여기서 모범 답안과 번갈아 들을 수 있습니다."));
   if(mine.trim()) app.append(el("div",{class:"block"},el("h2",null,"내 답변"),el("p",{class:"muted",style:"margin:0;white-space:pre-wrap"},mine)));
   app.append(el("div",{class:"btn-row"},
