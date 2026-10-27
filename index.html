@@ -589,7 +589,7 @@ function pickVoice(){
   voice=vs.find(v=>/samantha|aria|jenny|google us|female/i.test(v.name))||vs[0]||null;
 }
 if("speechSynthesis" in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice;}
-function hush(){ if("speechSynthesis" in window) window.speechSynthesis.cancel(); }
+function hush(){ seq++; if("speechSynthesis" in window) window.speechSynthesis.cancel(); if(player){ player.pause(); player=null; } }
 function speak(text,rate){
   if(!("speechSynthesis" in window)) return;
   hush();
@@ -597,6 +597,46 @@ function speak(text,rate){
   u.lang="en-US"; u.rate=rate||0.95; if(voice) u.voice=voice;
   speechSynthesis.speak(u);
 }
+// ---------- my recordings (MediaRecorder, 메모리에만 보관: 새로고침하면 사라짐) ----------
+const CAN_REC=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
+const CLIPS=new Map();
+let clip=null, player=null, seq=0;
+async function startClip(key){
+  if(!CAN_REC) return false;
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const type=["audio/webm;codecs=opus","audio/webm","audio/mp4"].find(t=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(t));
+    const mr=new MediaRecorder(stream,type?{mimeType:type}:undefined), chunks=[];
+    mr.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+    const done=new Promise(res=>{ mr.onstop=()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      if(chunks.length){ const old=CLIPS.get(key); if(old) URL.revokeObjectURL(old); CLIPS.set(key,URL.createObjectURL(new Blob(chunks,{type:mr.mimeType||type||"audio/webm"}))); }
+      res(CLIPS.get(key)||null);
+    }; });
+    mr.start(); clip={key,mr,done}; return true;
+  }catch(e){ return false; }
+}
+function pauseClip(){ if(clip&&clip.mr.state==="recording"){ try{clip.mr.pause();}catch(e){ return stopClip(); } } return Promise.resolve(); }
+function stopClip(){ if(!clip) return Promise.resolve(null); const c=clip; clip=null; try{c.mr.stop();}catch(e){} return c.done.then(u=>{ if(c.ui) c.ui(); return u; }); }
+function playClip(key){ hush(); return new Promise(res=>{ const u=CLIPS.get(key); if(!u) return res(); player=new Audio(u); player.onended=res; player.onerror=res; player.play().catch(res); }); }
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+// 원어민 → 내 녹음 순서로 재생. 중간에 다른 재생이나 화면 이동(hush)이 끼면 seq가 바뀌어 멈춤.
+async function alternate(key,text,rate){
+  speak(text,rate); const my=seq;
+  await wait(400);
+  while("speechSynthesis" in window&&speechSynthesis.speaking){ await wait(250); if(my!==seq) return; }
+  await wait(600); if(my!==seq) return;
+  playClip(key);
+}
+function clipControls(key,text,rate){
+  const box=el("div",{class:"row",style:"display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"});
+  const draw=()=>{ box.textContent=""; if(!CLIPS.has(key)) return;
+    box.append(el("button",{class:"pill",type:"button",onclick:()=>playClip(key)},"내 녹음 듣기"),
+      el("button",{class:"pill go",type:"button",onclick:()=>alternate(key,text,rate)},"번갈아 듣기 (원어민 → 나)"),
+      el("button",{class:"pill",type:"button",onclick:hush},"멈춤")); };
+  draw(); box.redraw=draw; return box;
+}
+
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 let srBlocked=false;
 
@@ -632,7 +672,7 @@ function sentenceRow(id,en,ko,opts){
   sayBtn.onclick=()=>{
     if(!SR||srBlocked){ if(!opts.noTrack) markDone(id); row.classList.add("done"); result.textContent="완료로 표시했습니다. 3번 반복해서 말해 보세요."; return; }
     if(activeRec){ stopActive(); setSay(); sayBtn.classList.remove("rec"); return; }
-    hush();
+    hush(); stopClip();
     const r=new SR(); activeRec=r;
     r.lang="en-US"; r.interimResults=true; r.continuous=false; r.maxAlternatives=3;
     sayBtn.classList.add("rec"); sayBtn.innerHTML=ICON.mic+"<span>듣는 중… 탭하면 중지</span>";
@@ -670,17 +710,30 @@ function sentenceRow(id,en,ko,opts){
       if(opts.onScore) opts.onScore(c.score);
     }
   };
+  // 녹음 비교: 내 목소리를 녹음해 원어민 음성과 번갈아 듣기
+  const ckey="s:"+id, clipBox=CAN_REC?clipControls(ckey,en):null;
+  const recBtn=CAN_REC?el("button",{class:"pill",type:"button"},"녹음 비교"):null;
+  if(recBtn) recBtn.onclick=async()=>{
+    if(clip&&clip.key===ckey){ await stopClip(); alternate(ckey,en); return; }
+    stopActive(); setSay(); sayBtn.classList.remove("rec"); hush(); await stopClip();
+    if(await startClip(ckey)){
+      recBtn.classList.add("rec"); recBtn.textContent="녹음 중… 탭하면 끝";
+      clip.ui=()=>{ recBtn.classList.remove("rec"); recBtn.textContent=CLIPS.has(ckey)?"다시 녹음":"녹음 비교"; clipBox.redraw(); };
+    }
+    else result.textContent="이 화면에서는 녹음을 쓸 수 없습니다. 마이크 허용을 확인해 주세요.";
+  };
+  if(recBtn&&CLIPS.has(ckey)) recBtn.textContent="다시 녹음";
   const ctrl=el("div",{class:"ctrl"},
     el("div",{class:"row"},
       el("button",{class:"pill",type:"button",html:ICON.play+"<span>듣기</span>",onclick:()=>speak(en)}),
       el("button",{class:"pill",type:"button",onclick:()=>speak(en,0.7)},"천천히"),
-      sayBtn, opts.noTrack?null:favBtn),
-    result);
+      sayBtn, opts.noTrack?null:favBtn, recBtn),
+    result, clipBox);
   tap.onclick=()=>{
     const open=!row.classList.contains("open");
     if(openRow&&openRow!==row){openRow.classList.remove("open");openRow.firstChild.setAttribute("aria-expanded","false");}
     row.classList.toggle("open",open); tap.setAttribute("aria-expanded",String(open));
-    openRow=open?row:null; stopActive();
+    openRow=open?row:null; stopActive(); stopClip();
     if(open) speak(en);
   };
   row.append(tap,ctrl);
@@ -727,7 +780,7 @@ function header(title,onBack,sub,right){
 }
 
 function render(){
-  app.textContent=""; openRow=null; window.scrollTo(0,0);
+  stopClip(); app.textContent=""; openRow=null; window.scrollTo(0,0);
   if(S.tab==="learn") S.topic?renderTopic():renderLearn();
   else if(S.tab==="mock") renderMock();
   else renderSaved();
@@ -940,6 +993,7 @@ let tick=null,secs=0,rec=null,recording=false,baseText="";
 function stopRec(){
   recording=false; clearInterval(tick); tick=null;
   if(rec){const r=rec;rec=null;try{r.stop();}catch(e){}}
+  pauseClip();
   const m=$("micBtn"); if(m){m.classList.remove("rec");$("micLabel").textContent=secs?"이어서 말하기":"답변 시작";}
 }
 function drawClock(){
@@ -949,14 +1003,22 @@ function drawClock(){
   $("ring").classList.toggle("over",secs>TARGET);
 }
 function note(msg){const n=$("micNotice");if(n){n.textContent=msg;n.classList.remove("hidden");}}
-function startRec(){
+const mockKey=()=>{const q=curQ();return "m:"+q.tid+":"+q.qi;};
+async function startRec(){
   recording=true; $("micBtn").classList.add("rec"); $("micLabel").textContent="답변 끝";
   if(!tick) tick=setInterval(()=>{secs++;drawClock();},1000);
-  if(!SR||srBlocked){ note("이 화면에서는 받아쓰기가 되지 않습니다. 타이머를 켜고 소리 내어 답한 뒤, 모범 답안과 비교해 보세요. AI 피드백을 받으려면 답변을 입력하세요."); return; }
+  // 내 답변 녹음: 같은 문항이면 이어서 녹음, 아니면 새로 시작. 녹음을 먼저 잡고 받아쓰기를 붙임.
+  const key=mockKey();
+  if(clip&&clip.key===key&&clip.mr.state==="paused"){ try{clip.mr.resume();}catch(e){} }
+  else if(CAN_REC){ await stopClip(); await startClip(key); }
+  if(!recording){ pauseClip(); return; }
+  if(!SR||srBlocked){ note(clip?"이 화면에서는 받아쓰기가 되지 않지만 녹음은 됩니다. 답한 뒤 ‘모범 답안과 비교’에서 내 녹음을 들어 보세요.":"이 화면에서는 받아쓰기가 되지 않습니다. 타이머를 켜고 소리 내어 답한 뒤, 모범 답안과 비교해 보세요. AI 피드백을 받으려면 답변을 입력하세요."); return; }
   baseText=$("answer").value.trim(); if(baseText) baseText+=" ";
   rec=new SR(); rec.lang="en-US"; rec.continuous=true; rec.interimResults=true;
   rec.onresult=e=>{let fin="",inter="";for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)fin+=t+" ";else inter+=t;}if(fin)baseText+=fin;$("answer").value=(baseText+inter).replace(/\s+/g," ");};
-  rec.onerror=e=>{if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){srBlocked=true;rec=null;note("마이크를 쓸 수 없어 받아쓰기가 멈췄습니다. 타이머는 계속 돌아가니 소리 내어 답하세요.");}};
+  rec.onerror=e=>{if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){
+    if(clip){rec=null;note("이 기기에서는 녹음과 받아쓰기를 같이 할 수 없어 녹음만 합니다. 답한 뒤 ‘모범 답안과 비교’에서 내 녹음을 들어 보세요.");return;}
+    srBlocked=true;rec=null;note("마이크를 쓸 수 없어 받아쓰기가 멈췄습니다. 타이머는 계속 돌아가니 소리 내어 답하세요.");}};
   rec.onend=()=>{if(recording&&rec){try{rec.start();}catch(_){}}};
   try{rec.start();}catch(_){}
 }
@@ -987,7 +1049,7 @@ function mockQuestion(){
     el("textarea",{id:"answer",placeholder:SR?"답변을 시작하면 받아쓰기가 됩니다. 직접 입력하거나 고쳐도 됩니다.":"받아쓰기가 지원되지 않는 환경입니다. 말로 답하고, AI 피드백을 원하면 입력하세요.",style:"margin-top:10px"}),
     el("div",{class:"notice hidden",id:"micNotice"}));
   const row=el("div",{class:"btn-row"},
-    el("button",{class:"btn primary",type:"button",onclick:()=>{stopRec();M.lastAI={ans:$("answer").value};M.view="feedback";render();}},"모범 답안과 비교"));
+    el("button",{class:"btn primary",type:"button",onclick:()=>{stopRec();M.lastAI={ans:$("answer").value};stopClip().then(()=>{M.view="feedback";render();});}},"모범 답안과 비교"));
   if(S.sample) row.append(el("button",{class:"btn",type:"button",onclick:askAI},"AI 첨삭 (선택)"));
   row.append(el("button",{class:"btn",type:"button",onclick:nextQ},"다음 문항"));
   blk.append(row); app.append(blk);
@@ -1011,7 +1073,7 @@ Return ONLY a JSON object, no markdown fences:
 Up to 5 fixes.`;
 }
 async function askAI(){
-  stopRec();
+  stopRec(); await stopClip();
   const ans=($("answer").value||"").trim(), words=ans?ans.split(/\s+/).length:0;
   if(words<15){note("AI 평가에는 15단어 이상이 필요합니다 (지금 "+words+"단어). 받아쓰기가 안 되면 직접 입력하세요.");return;}
   const M=S.mock, q=curQ();
@@ -1051,6 +1113,11 @@ function mockFeedback(){
   mb.append(el("h3",null,"핵심 문장 따라 말하기"));
   q.k.forEach((k,ki)=>mb.append(sentenceRow(q.tid+":"+q.qi+":"+ki,k[0],k[1])));
   app.append(mb);
+  const key=mockKey();
+  if(CLIPS.has(key)) app.append(el("div",{class:"block"},el("h2",null,"내 녹음과 비교"),
+    el("p",{class:"muted",style:"margin:0"},"내 답변 녹음과 모범 답안을 번갈아 들으며 억양과 속도 차이를 느껴 보세요. 녹음은 새로고침하면 사라집니다."),
+    clipControls(key,q.m,0.9)));
+  else if(CAN_REC) app.append(el("p",{class:"muted"},"‘답변 시작’을 누르고 말하면 내 답변이 녹음되어 여기서 모범 답안과 번갈아 들을 수 있습니다."));
   if(mine.trim()) app.append(el("div",{class:"block"},el("h2",null,"내 답변"),el("p",{class:"muted",style:"margin:0;white-space:pre-wrap"},mine)));
   app.append(el("div",{class:"btn-row"},
     el("button",{class:"btn primary",type:"button",onclick:nextQ},S.mock.idx+1>=S.mock.queue.length?"모의 시험 끝내기":"다음 문항"),

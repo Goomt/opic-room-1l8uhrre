@@ -38,4 +38,4 @@ GitHub Pages 무료 플랜은 public 저장소에서만 동작합니다. 그래�
 1. ~~내 정보 입력으로 예시 정보 자동 치환~~ (완료: 첫 화면 '내 정보', localStorage `opic-me`)
 2. ~~유형별 답변 템플릿 훈련~~ (완료: 따라 말하기 ⑤ 묘사·루틴·경험 뼈대, `FRAMES` 데이터, localStorage `opic-frames`)
 3. ~~틀렸거나 저장한 문장을 1일/3일/7일 뒤 다시 띄우는 복습~~ (완료: 내 문장 탭 복습, localStorage `opic-review`)
-4. 내 녹음 다시 듣기(MediaRecorder)
+4. ~~내 녹음 다시 듣기(MediaRecorder)~~ (완료: 문장별 '녹음 비교', 실전 모의 비교 화면 '내 녹음과 비교'. 녹음은 메모리에만 있어 새로고침하면 사라짐)
